@@ -26,7 +26,7 @@ impl AppConfig {
         let log_level = match cli_args.debug {
             0 => 1,
             0..=3 => cli_args.debug + 2,
-            level if level > 5 => 5,
+            level if level > 3 => 5,
             _ => unreachable!(),
         };
         // Override environment variables as required

@@ -16,8 +16,11 @@ pub fn setup_logging(log_level: Level) -> Result<()> {
 
     let time_format = LocalTime::new(format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:6][offset_hour sign:mandatory]:[offset_minute]"));
 
-    let subscriber = tracing_subscriber::registry()
-        .with(Layer::new().with_writer(stdout).with_timer(time_format));
+    let subscriber = tracing_subscriber::registry().with(
+        Layer::new()
+            .with_writer(stdout)
+            .with_timer(time_format.clone()),
+    );
 
     tracing::subscriber::set_global_default(subscriber)
         .expect("failed to set global logging instance");

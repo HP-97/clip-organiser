@@ -1,20 +1,14 @@
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
 use crate::prelude::*;
-use tracing_subscriber::fmt::writer::MakeWriterExt;
+use tracing::Level;
 use walkdir::{DirEntry, WalkDir};
 
 pub mod cli;
 pub mod error;
 pub mod prelude;
 pub mod utils;
-
-fn _get_program_path(binary_name: &str) -> Option<PathBuf> {
-    match which::which(binary_name) {
-        Ok(path) => Some(path),
-        Err(_) => None,
-    }
-}
+pub mod videoclip;
 
 /// Returns true if the file has a supported file extension. False otherwise
 fn is_supported_file_ext(entry: &DirEntry, supported_file_exts: &Vec<String>) -> bool {
@@ -22,6 +16,13 @@ fn is_supported_file_ext(entry: &DirEntry, supported_file_exts: &Vec<String>) ->
         if let Some(file_ext) = file_name.split(".").last() {
             if supported_file_exts.contains(&file_ext.to_owned()) {
                 return true;
+            } else {
+                tracing::event!(
+                    Level::TRACE,
+                    "did not match {:?} {:?}",
+                    entry,
+                    supported_file_exts
+                )
             }
         }
     }
@@ -33,17 +34,31 @@ fn is_supported_file_ext(entry: &DirEntry, supported_file_exts: &Vec<String>) ->
 pub fn get_all_source_videos(
     source_dir: &PathBuf,
     supported_file_exts: &Vec<String>,
-) -> Vec<PathBuf> {
-    let video_files: Vec<PathBuf> = Vec::new();
+) -> Result<Vec<PathBuf>> {
+    let mut video_files: Vec<PathBuf> = Vec::new();
+    let absolute_path: PathBuf;
 
-    // let video_files =
-    println!("{}", source_dir.display());
-    for entry in WalkDir::new(source_dir)
-        .into_iter()
-        .filter_entry(|v| is_supported_file_ext(v, supported_file_exts))
-    {
-        println!("{}", entry.unwrap().path().display());
+    // convert path to absolute path
+    match std::fs::canonicalize(source_dir) {
+        Ok(v) => absolute_path = v,
+        Err(e) => {
+            tracing::event!(Level::ERROR, "failed to convert path to absolute path: {e}");
+            return Err(AppError::Generic(e.to_string()));
+        }
     }
 
-    video_files
+    for entry in WalkDir::new(absolute_path).into_iter() {
+        match entry {
+            Ok(v) => {
+                if v.file_type().is_file() {
+                    if is_supported_file_ext(&v, supported_file_exts) {
+                        video_files.push(v.into_path());
+                    }
+                }
+            }
+            Err(e) => tracing::event!(Level::DEBUG, "failed to process {} - moving on", e),
+        }
+    }
+
+    Ok(video_files)
 }
